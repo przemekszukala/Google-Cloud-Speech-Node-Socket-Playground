@@ -7,15 +7,23 @@
 
 const express = require('express'); // const bodyParser = require('body-parser'); // const path = require('path');
 const environmentVars = require('dotenv').config();
-
+const {
+  SpeechTranslationServiceClient,
+} = require('@google-cloud/media-translation');
+const fs = require("fs")
+// Creates a client
+const speechClient = new SpeechTranslationServiceClient();
 // Google Cloud
 const speech = require('@google-cloud/speech');
-const speechClient = new speech.SpeechClient(); // Creates a client
-
+// const speechClient = new speech.SpeechClient(); // Creates a client
+var getFileHeaders = require('wav-headers');
+const wavefile = require('wavefile');
+let wav = new wavefile.WaveFile();
+let BaseFull = "";
+let buffFull = Buffer.alloc(10);
 const app = express();
 const port = process.env.PORT || 1337;
 const server = require('http').createServer(app);
-
 const io = require('socket.io')(server);
 
 app.use('/assets', express.static(__dirname + '/public'));
@@ -35,8 +43,9 @@ app.use('/', function (req, res, next) {
 // =========================== SOCKET.IO ================================ //
 
 io.on('connection', function (client) {
+
+
   console.log('Client Connected to server');
-  let recognizeStream = null;
 
   client.on('join', function () {
     client.emit('messages', 'Socket Connected to Server');
@@ -47,48 +56,107 @@ io.on('connection', function (client) {
   });
 
   client.on('startGoogleCloudStream', function (data) {
-    startRecognitionStream(this, data);
+    //startRecognitionStream(this, data);
+    translateFromMicrophone()
+
   });
 
-  client.on('endGoogleCloudStream', function () {
-    stopRecognitionStream();
-  });
 
-  client.on('binaryData', function (data) {
-    // console.log(data); //log binary data
-    if (recognizeStream !== null) {
-      recognizeStream.write(data);
-    }
-  });
 
-  function startRecognitionStream(client) {
-    recognizeStream = speechClient
-      .streamingRecognize(request)
-      .on('error', console.error)
-      .on('data', (data) => {
-        process.stdout.write(
-          data.results[0] && data.results[0].alternatives[0]
-            ? `Transcription: ${data.results[0].alternatives[0].transcript}\n`
-            : '\n\nReached transcription time limit, press Ctrl+C\n'
-        );
-        client.emit('speechData', data);
+  ;
 
-        // if end of utterance, let's restart stream
-        // this is a small hack. After 65 seconds of silence, the stream will still throw an error for speech length limit
-        if (data.results[0] && data.results[0].isFinal) {
-          stopRecognitionStream();
-          startRecognitionStream(client);
-          // console.log('restarted stream serverside');
+
+  function translateFromMicrophone() {
+    /**
+     * TODO(developer): Uncomment the following lines before running the sample.
+     */
+
+
+    let isFirst = true;
+    const encoding = 'linear16';
+    const sampleRateHertz = 44100;
+    const sourceLanguage = 'en-US';
+    const targetLanguage = 'it-IT';
+    console.log('Begin speaking ...');
+
+    const config = {
+      audioConfig: {
+        audioEncoding: encoding,
+        sampleRateHertz: sampleRateHertz,
+        sourceLanguageCode: sourceLanguage,
+        targetLanguageCode: targetLanguage,
+      },
+      singleUtterance: true,
+    };
+
+    // First request needs to have only a streaming config, no data.
+    const initialRequest = {
+      streamingConfig: config,
+      audioContent: null,
+    };
+
+
+    let currentTranslation = '';
+    let currentRecognition = '';
+    // Create a recognize stream
+    const stream = speechClient
+      .streamingTranslateSpeech()
+      .on('data', response => {
+        const { result, speechEventType } = response;
+        if (speechEventType === 'END_OF_SINGLE_UTTERANCE') {
+          console.log(`\nFinal translation: ${currentTranslation}`);
+          console.log(`Final recognition result: ${currentRecognition}`);
+
+          stream.destroy();
+          // recording.stop();
+        } else {
+          currentTranslation = result.textTranslationResult.translation;
+          currentRecognition = result.recognitionResult;
+          console.log(`\nPartial translation: ${currentTranslation}`);
+          console.log(`Partial recognition result: ${currentRecognition}`);
         }
       });
+
+    client.on('binaryData', function (data) {
+
+      let baseData = data.toString('base64')
+      if (stream !== null) {
+        if (isFirst) {
+          console.log("FirstCall")
+          stream.write(initialRequest);
+          isFirst = false;
+        }
+        const request = {
+          streamingConfig: config,
+          audioContent: baseData,
+        };
+        if (!stream.destroyed) {
+          buffFull = Buffer.concat([buffFull, data]);
+
+          // BaseFull += baseData;
+          stream.write(request)
+
+
+          // console.log(test)
+
+
+        }
+      }
+    })
+
+    client.on('endGoogleCloudStream', function () {
+      // console.log(BaseFull)
+      wav.fromBuffer(buffFull);
+      fs.writeFileSync("test1.wav", wav.toBuffer());
+
+      console.log("end")
+      stream.end();
+    });
+
   }
 
-  function stopRecognitionStream() {
-    if (recognizeStream) {
-      recognizeStream.end();
-    }
-    recognizeStream = null;
-  }
+
+
 });
 
 // =========================== GOOGLE CLOUD SETTINGS ================================ //

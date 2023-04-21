@@ -43,7 +43,7 @@ async function initRecording() {
 
   await context.audioWorklet.addModule('./assets/js/recorderWorkletProcessor.js')
   context.resume();
-  
+
   globalStream = await navigator.mediaDevices.getUserMedia(constraints)
   input = context.createMediaStreamSource(globalStream)
   processor = new window.AudioWorkletNode(

@@ -9,7 +9,7 @@ class RecorderProcessor extends AudioWorkletProcessor {
 
   // 2. Create a buffer of fixed size
   _buffer = new Float32Array(this.bufferSize)
-  
+
   constructor() {
     super()
     this.initBuffer()
@@ -26,11 +26,11 @@ class RecorderProcessor extends AudioWorkletProcessor {
   isBufferFull() {
     return this._bytesWritten === this.bufferSize
   }
-  
-    /**
-   * @param {Float32Array[][]} inputs
-   * @returns {boolean}
-   */
+
+  /**
+ * @param {Float32Array[][]} inputs
+ * @returns {boolean}
+ */
   process(inputs) {
     // Grabbing the 1st channel similar to ScriptProcessorNode
     this.append(inputs[0][0])
@@ -53,18 +53,18 @@ class RecorderProcessor extends AudioWorkletProcessor {
       this._buffer[this._bytesWritten++] = channelData[i]
     }
   }
-  
+
   flush() {
     // trim the buffer if ended prematurely
     const buffer = this._bytesWritten < this.bufferSize
       ? this._buffer.slice(0, this._bytesWritten)
       : this._buffer
-    const result = this.downsampleBuffer(buffer, 44100, 16000);
+    const result = this.downsampleBuffer(buffer, 44100, 44100);
     this.port.postMessage(result)
     this.initBuffer()
   }
 
-  downsampleBuffer (buffer, sampleRate, outSampleRate) {
+  downsampleBuffer(buffer, sampleRate, outSampleRate) {
     if (outSampleRate == sampleRate) {
       return buffer;
     }
@@ -84,7 +84,7 @@ class RecorderProcessor extends AudioWorkletProcessor {
         accum += buffer[i];
         count++;
       }
-  
+
       result[offsetResult] = Math.min(1, accum / count) * 0x7fff;
       offsetResult++;
       offsetBuffer = nextOffsetBuffer;
