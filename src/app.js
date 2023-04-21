@@ -14,13 +14,7 @@ const fs = require("fs")
 // Creates a client
 const speechClient = new SpeechTranslationServiceClient();
 // Google Cloud
-const speech = require('@google-cloud/speech');
 // const speechClient = new speech.SpeechClient(); // Creates a client
-var getFileHeaders = require('wav-headers');
-const wavefile = require('wavefile');
-let wav = new wavefile.WaveFile();
-let BaseFull = "";
-let buffFull = Buffer.alloc(10);
 const app = express();
 const port = process.env.PORT || 1337;
 const server = require('http').createServer(app);
@@ -74,7 +68,7 @@ io.on('connection', function (client) {
 
     let isFirst = true;
     const encoding = 'linear16';
-    const sampleRateHertz = 44100;
+    const sampleRateHertz = 16000;
     const sourceLanguage = 'en-US';
     const targetLanguage = 'it-IT';
     console.log('Begin speaking ...');
@@ -131,13 +125,10 @@ io.on('connection', function (client) {
           audioContent: baseData,
         };
         if (!stream.destroyed) {
-          buffFull = Buffer.concat([buffFull, data]);
-
-          // BaseFull += baseData;
+          fs.appendFileSync('testtest.wav', data);
           stream.write(request)
 
 
-          // console.log(test)
 
 
         }
@@ -145,9 +136,6 @@ io.on('connection', function (client) {
     })
 
     client.on('endGoogleCloudStream', function () {
-      // console.log(BaseFull)
-      wav.fromBuffer(buffFull);
-      fs.writeFileSync("test1.wav", wav.toBuffer());
 
       console.log("end")
       stream.end();
